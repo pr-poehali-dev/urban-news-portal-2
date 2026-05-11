@@ -19,7 +19,7 @@ interface HomePageProps {
 const HERO_IMAGE = "https://cdn.poehali.dev/projects/e9d4bcbf-30cc-4367-8a8e-725cb46ef9e7/files/37b6c00d-a2ea-4ed8-b632-514b85fb894d.jpg";
 const CULTURE_IMAGE = "https://cdn.poehali.dev/projects/e9d4bcbf-30cc-4367-8a8e-725cb46ef9e7/files/0b389c1d-d966-4d63-a360-4564e712f2ff.jpg";
 
-const SECTIONS = ["Главная", "Новости", "Рубрики", "О городе", "Афиша", "Объявления", "Контакты"];
+const SECTIONS = ["Главная", "Новости", "Рубрики", "О городе", "Афиша", "Объявления", "Форум", "Контакты"];
 
 const NEWS = [
   {
@@ -149,6 +149,7 @@ export default function Index() {
       case "О городе": return <AboutCityPage />;
       case "Афиша": return <AfishaPage />;
       case "Объявления": return <AnnouncementsPage />;
+      case "Форум": return <ForumPage />;
       case "Контакты": return <ContactsPage />;
       default: return (
         <HomePage
@@ -698,6 +699,333 @@ function AnnouncementsPage() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Forum types ─── */
+interface ForumTopic {
+  id: number;
+  category: string;
+  title: string;
+  author: string;
+  date: string;
+  replies: number;
+  views: number;
+  lastReply: string;
+  lastReplyDate: string;
+  pinned?: boolean;
+}
+
+interface ForumReply {
+  id: number;
+  author: string;
+  text: string;
+  date: string;
+  likes: number;
+}
+
+const FORUM_CATEGORIES = [
+  { name: "Все темы", icon: "MessagesSquare" },
+  { name: "Городские вопросы", icon: "Building2" },
+  { name: "ЖКХ и дороги", icon: "Wrench" },
+  { name: "Работа и бизнес", icon: "Briefcase" },
+  { name: "Образование", icon: "GraduationCap" },
+  { name: "Досуг и отдых", icon: "Coffee" },
+  { name: "Разное", icon: "Hash" },
+];
+
+const INIT_TOPICS: ForumTopic[] = [
+  { id: 1, category: "ЖКХ и дороги", title: "Когда починят тротуар на ул. Ленина между домами 12 и 18?", author: "Кириллов А.", date: "11.05.2026", replies: 14, views: 312, lastReply: "Соседов П.", lastReplyDate: "11.05.2026", pinned: true },
+  { id: 2, category: "Городские вопросы", title: "Инициатива: установить велодорожки в центре города", author: "Велосипедист42", date: "10.05.2026", replies: 31, views: 780, lastReply: "Администрация", lastReplyDate: "11.05.2026", pinned: true },
+  { id: 3, category: "Образование", title: "Запись в первый класс 2026 — делимся опытом и советами", author: "Мама_троих", date: "09.05.2026", replies: 22, views: 541, lastReply: "НатальяВ", lastReplyDate: "10.05.2026" },
+  { id: 4, category: "ЖКХ и дороги", title: "Отключение горячей воды в Северном районе — обсуждаем", author: "Сидоров Г.И.", date: "09.05.2026", replies: 8, views: 204, lastReply: "РЭУ-5", lastReplyDate: "10.05.2026" },
+  { id: 5, category: "Работа и бизнес", title: "Новые вакансии на технопарке — кто уже подавал документы?", author: "ИщуРаботу2026", date: "08.05.2026", replies: 19, views: 467, lastReply: "Волкова Е.", lastReplyDate: "09.05.2026" },
+  { id: 6, category: "Досуг и отдых", title: "Рыбалка на озере Круглом — места, советы, правила", author: "РыбакДедМороз", date: "07.05.2026", replies: 45, views: 1203, lastReply: "ПрирОхрана", lastReplyDate: "11.05.2026" },
+  { id: 7, category: "Разное", title: "Потеряна кошка рыжая, район Октябрьский — помогите найти", author: "Потеряшки", date: "11.05.2026", replies: 3, views: 89, lastReply: "Соседка22", lastReplyDate: "11.05.2026" },
+];
+
+const INIT_REPLIES: ForumReply[] = [
+  { id: 1, author: "Кириллов А.", text: "Уже полгода хожу по этому тротуару на работу. Плиты провалились, лужи стоят постоянно. Звонил в управляющую компанию — обещали, но воз и ныне там.", date: "10.05.2026", likes: 12 },
+  { id: 2, author: "Соседов П.", text: "Сам писал заявление в администрацию ещё в марте. Ответили, что включили в план ремонта на II квартал. Подождём ещё немного.", date: "11.05.2026", likes: 5 },
+  { id: 3, author: "ЖКХконтроль", text: "Рекомендую подать коллективное обращение через портал госуслуг — это значительно ускоряет реакцию. Прикладывайте фотографии.", date: "11.05.2026", likes: 18 },
+];
+
+function ForumPage() {
+  const [topics, setTopics] = useState<ForumTopic[]>(INIT_TOPICS);
+  const [activeCategory, setActiveCategory] = useState("Все темы");
+  const [openTopic, setOpenTopic] = useState<ForumTopic | null>(null);
+  const [replies, setReplies] = useState<ForumReply[]>(INIT_REPLIES);
+  const [replyText, setReplyText] = useState("");
+  const [replyName, setReplyName] = useState("");
+  const [showNewTopic, setShowNewTopic] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newCategory, setNewCategory] = useState("Городские вопросы");
+  const [newText, setNewText] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+  const [replySent, setReplySent] = useState(false);
+
+  const filtered = activeCategory === "Все темы"
+    ? topics
+    : topics.filter(t => t.category === activeCategory);
+
+  const handleNewTopic = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newAuthor.trim()) return;
+    const topic: ForumTopic = {
+      id: Date.now(),
+      category: newCategory,
+      title: newTitle,
+      author: newAuthor,
+      date: new Date().toLocaleDateString("ru-RU"),
+      replies: 0,
+      views: 1,
+      lastReply: newAuthor,
+      lastReplyDate: new Date().toLocaleDateString("ru-RU"),
+    };
+    setTopics([topic, ...topics]);
+    setNewTitle(""); setNewCategory("Городские вопросы"); setNewText(""); setNewAuthor("");
+    setShowNewTopic(false);
+    setOpenTopic(topic);
+  };
+
+  const handleReply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || !replyName.trim()) return;
+    const r: ForumReply = {
+      id: Date.now(),
+      author: replyName,
+      text: replyText,
+      date: new Date().toLocaleDateString("ru-RU"),
+      likes: 0,
+    };
+    setReplies([...replies, r]);
+    if (openTopic) {
+      setTopics(topics.map(t => t.id === openTopic.id ? { ...t, replies: t.replies + 1, lastReply: replyName, lastReplyDate: r.date } : t));
+    }
+    setReplyText(""); setReplySent(true);
+    setTimeout(() => setReplySent(false), 2500);
+  };
+
+  const likeReply = (id: number) => setReplies(replies.map(r => r.id === id ? { ...r, likes: r.likes + 1 } : r));
+
+  if (openTopic) {
+    return (
+      <div>
+        <div className="double-rule mb-1" />
+        <div className="flex items-center gap-2 mt-3 mb-5">
+          <button onClick={() => setOpenTopic(null)} className="flex items-center gap-1.5 font-ptsans text-xs text-portal-navy hover:underline">
+            <Icon name="ChevronLeft" size={14} /> Форум
+          </button>
+          <Icon name="ChevronRight" size={12} className="text-portal-gray" />
+          <span className="font-ptsans text-xs text-portal-gray">{openTopic.category}</span>
+        </div>
+
+        <div className="bg-white border border-portal-gray-light p-5 mb-5">
+          <div className="flex items-start gap-3 mb-3">
+            {openTopic.pinned && <span className="tag-badge-gold flex-shrink-0">Закреплено</span>}
+            <span className="tag-badge flex-shrink-0">{openTopic.category}</span>
+          </div>
+          <h1 className="font-playfair text-2xl font-bold text-portal-navy mb-2">{openTopic.title}</h1>
+          <div className="flex items-center gap-4 font-ptsans text-xs text-portal-gray">
+            <span className="flex items-center gap-1"><Icon name="User" size={11} /> {openTopic.author}</span>
+            <span className="flex items-center gap-1"><Icon name="Calendar" size={11} /> {openTopic.date}</span>
+            <span className="flex items-center gap-1"><Icon name="MessageSquare" size={11} /> {openTopic.replies} ответов</span>
+            <span className="flex items-center gap-1"><Icon name="Eye" size={11} /> {openTopic.views} просм.</span>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          {replies.map((r, i) => (
+            <div key={r.id} className="bg-white border border-portal-gray-light">
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-portal-gray-light bg-portal-paper">
+                <div className="w-8 h-8 bg-portal-navy flex items-center justify-center flex-shrink-0">
+                  <span className="font-ptsans text-[11px] font-bold text-white">{r.author[0]}</span>
+                </div>
+                <div>
+                  <div className="font-ptsans text-xs font-bold text-portal-ink">{r.author}</div>
+                  <div className="font-ptsans text-[10px] text-portal-gray">{r.date}</div>
+                </div>
+                <span className="ml-auto font-ptsans text-[10px] text-portal-gray">#{i + 1}</span>
+              </div>
+              <div className="px-5 py-4">
+                <p className="font-ptserif text-sm text-portal-ink-light leading-relaxed">{r.text}</p>
+              </div>
+              <div className="flex items-center gap-3 px-5 pb-3">
+                <button onClick={() => likeReply(r.id)} className="flex items-center gap-1.5 font-ptsans text-[11px] text-portal-gray hover:text-portal-navy transition-colors">
+                  <Icon name="ThumbsUp" size={12} /> {r.likes}
+                </button>
+                <button className="font-ptsans text-[11px] text-portal-gray hover:text-portal-navy transition-colors">Цитировать</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white border border-portal-gray-light p-5">
+          <div className="portal-section-title">Оставить ответ</div>
+          {replySent ? (
+            <div className="bg-green-50 border border-green-200 p-3 text-center">
+              <span className="font-ptsans text-sm text-green-800 flex items-center justify-center gap-2">
+                <Icon name="CheckCircle" size={14} /> Ответ опубликован
+              </span>
+            </div>
+          ) : (
+            <form onSubmit={handleReply} className="space-y-3">
+              <input
+                placeholder="Ваше имя"
+                value={replyName}
+                onChange={e => setReplyName(e.target.value)}
+                className="w-full font-ptserif text-sm border border-portal-gray-light p-3 focus:outline-none focus:border-portal-navy bg-portal-paper"
+              />
+              <textarea
+                placeholder="Текст ответа..."
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                className="w-full font-ptserif text-sm border border-portal-gray-light p-3 resize-none h-28 focus:outline-none focus:border-portal-navy bg-portal-paper"
+              />
+              <div className="flex items-center justify-between">
+                <span className="font-ptsans text-[11px] text-portal-gray">Ответы публикуются сразу</span>
+                <button type="submit" className="btn-primary">Отправить ответ</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+      {/* Sidebar categories */}
+      <aside>
+        <div className="bg-white border border-portal-gray-light">
+          <div className="sidebar-widget-header">Разделы форума</div>
+          <div className="p-2">
+            {FORUM_CATEGORIES.map(cat => (
+              <button
+                key={cat.name}
+                onClick={() => setActiveCategory(cat.name)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${activeCategory === cat.name ? "bg-portal-navy text-white" : "text-portal-ink hover:bg-portal-gray-light"}`}
+              >
+                <Icon name={cat.icon} size={13} className={activeCategory === cat.name ? "text-portal-gold-light" : "text-portal-gold"} />
+                <span className="font-ptsans text-xs">{cat.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-portal-gray-light mt-4 p-4">
+          <div className="portal-section-title">Статистика</div>
+          <div className="space-y-2">
+            {[
+              { label: "Тем", value: topics.length },
+              { label: "Сообщений", value: topics.reduce((s, t) => s + t.replies, 0) + 3 },
+              { label: "Участников", value: 284 },
+            ].map(s => (
+              <div key={s.label} className="flex justify-between items-center font-ptsans text-xs">
+                <span className="text-portal-gray">{s.label}</span>
+                <span className="font-bold text-portal-navy">{s.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      {/* Topics */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="double-rule mb-1" />
+            <div className="portal-section-title mt-2 mb-0">
+              {activeCategory} <span className="text-portal-gray font-normal normal-case tracking-normal text-xs">({filtered.length})</span>
+            </div>
+          </div>
+          <button onClick={() => setShowNewTopic(!showNewTopic)} className="btn-primary flex items-center gap-2">
+            <Icon name="Plus" size={14} />
+            Новая тема
+          </button>
+        </div>
+
+        {showNewTopic && (
+          <form onSubmit={handleNewTopic} className="bg-amber-50 border border-amber-200 p-5 mb-4 animate-fade-in">
+            <div className="font-ptsans text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">Создать новую тему</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                placeholder="Ваше имя"
+                value={newAuthor}
+                onChange={e => setNewAuthor(e.target.value)}
+                className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy"
+              />
+              <select
+                value={newCategory}
+                onChange={e => setNewCategory(e.target.value)}
+                className="font-ptsans text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none"
+              >
+                {FORUM_CATEGORIES.slice(1).map(c => <option key={c.name}>{c.name}</option>)}
+              </select>
+              <input
+                placeholder="Заголовок темы"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                className="sm:col-span-2 font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy"
+              />
+              <textarea
+                placeholder="Первое сообщение..."
+                value={newText}
+                onChange={e => setNewText(e.target.value)}
+                className="sm:col-span-2 font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white resize-none h-20 focus:outline-none focus:border-portal-navy"
+              />
+            </div>
+            <div className="flex items-center gap-3 mt-3">
+              <button type="submit" className="btn-primary">Создать тему</button>
+              <button type="button" onClick={() => setShowNewTopic(false)} className="font-ptsans text-xs text-portal-gray hover:text-portal-ink transition-colors">Отмена</button>
+            </div>
+          </form>
+        )}
+
+        <div className="bg-white border border-portal-gray-light">
+          {filtered.length === 0 && (
+            <div className="p-8 text-center font-ptsans text-sm text-portal-gray">В этом разделе пока нет тем</div>
+          )}
+          {filtered.map((topic, i) => (
+            <div
+              key={topic.id}
+              className={`flex items-start gap-4 px-5 py-4 border-b border-portal-gray-light last:border-0 hover:bg-portal-paper transition-colors cursor-pointer ${i === 0 && filtered.some(t => t.pinned) ? "" : ""}`}
+              onClick={() => setOpenTopic(topic)}
+            >
+              <div className={`w-10 h-10 flex items-center justify-center flex-shrink-0 mt-0.5 ${topic.pinned ? "bg-portal-gold" : "bg-portal-navy"}`}>
+                <Icon name={topic.pinned ? "Pin" : "MessageSquare"} size={16} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  {topic.pinned && <span className="tag-badge-gold">Закреплено</span>}
+                  <span className="tag-badge">{topic.category}</span>
+                </div>
+                <div className="font-playfair text-base font-bold text-portal-ink hover:text-portal-navy mb-1 leading-tight">
+                  {topic.title}
+                </div>
+                <div className="font-ptsans text-[11px] text-portal-gray">
+                  Автор: {topic.author} · {topic.date}
+                </div>
+              </div>
+              <div className="hidden sm:flex flex-col items-end gap-1 flex-shrink-0 text-right">
+                <div className="flex items-center gap-3">
+                  <span className="font-ptsans text-[11px] text-portal-gray flex items-center gap-1">
+                    <Icon name="MessageSquare" size={11} /> {topic.replies}
+                  </span>
+                  <span className="font-ptsans text-[11px] text-portal-gray flex items-center gap-1">
+                    <Icon name="Eye" size={11} /> {topic.views}
+                  </span>
+                </div>
+                <div className="font-ptsans text-[10px] text-portal-gray">
+                  <span className="text-portal-navy font-bold">{topic.lastReply}</span>
+                  <br />{topic.lastReplyDate}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
