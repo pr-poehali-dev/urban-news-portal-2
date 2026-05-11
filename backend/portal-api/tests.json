@@ -1,0 +1,36 @@
+{
+  "tests": [
+    {
+      "name": "GET ?action=news — возвращает 200",
+      "method": "GET",
+      "path": "/?action=news",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET ?action=events — возвращает 200",
+      "method": "GET",
+      "path": "/?action=events",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET ?action=announcements — возвращает 200",
+      "method": "GET",
+      "path": "/?action=announcements",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET ?action=forum_topics — возвращает 200",
+      "method": "GET",
+      "path": "/?action=forum_topics",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET ?action=stats без токена — 401",
+      "method": "GET",
+      "path": "/?action=stats",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial",
+      "expectedBody": {"error": "Unauthorized"}
+    }
+  ]
+}

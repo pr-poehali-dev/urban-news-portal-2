@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
+import { api, NewsItem as ApiNews, EventItem as ApiEvent, AnnouncementItem as ApiAnn, ForumTopic as ApiTopic, ForumReply as ApiReply } from "@/lib/api";
 
 interface Comment {
   id: number;
@@ -9,11 +10,17 @@ interface Comment {
 }
 
 interface HomePageProps {
+  news: ApiNews[];
+  events: ApiEvent[];
+  announcements: ApiAnn[];
   comments: Comment[];
   commentText: string;
+  commentAuthor: string;
   setCommentText: (value: string) => void;
+  setCommentAuthor: (value: string) => void;
   handleCommentSubmit: (e: React.FormEvent) => void;
   pendingComment: boolean;
+  loading: boolean;
 }
 
 const HERO_IMAGE = "https://cdn.poehali.dev/projects/e9d4bcbf-30cc-4367-8a8e-725cb46ef9e7/files/37b6c00d-a2ea-4ed8-b632-514b85fb894d.jpg";
@@ -125,17 +132,42 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [comments] = useState([
-    { id: 1, author: "Сергей В.", text: "Давно ждали этого решения по дороге. Надеемся, сделают качественно.", date: "11.05.2026" },
-    { id: 2, author: "Марина К.", text: "Хорошая новость про школы. Гордимся нашими учителями!", date: "10.05.2026" },
-  ]);
+  const [commentAuthor, setCommentAuthor] = useState("");
+  const [apiComments, setApiComments] = useState<ApiNews[]>([]);
   const [pendingComment, setPendingComment] = useState(false);
+  const [dbNews, setDbNews] = useState<ApiNews[]>([]);
+  const [dbEvents, setDbEvents] = useState<ApiEvent[]>([]);
+  const [dbAnnouncements, setDbAnnouncements] = useState<ApiAnn[]>([]);
+  const [dbComments, setDbComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    Promise.all([
+      api.getNews(),
+      api.getEvents(),
+      api.getAnnouncements(),
+      api.getComments(),
+    ]).then(([news, events, ann, comments]) => {
+      setDbNews(news);
+      setDbEvents(events);
+      setDbAnnouncements(ann);
+      setDbComments(comments.map((c: ReturnType<typeof api.getComments> extends Promise<infer T> ? T[number] : never) => ({
+        id: c.id,
+        author: c.author,
+        text: c.body,
+        date: new Date(c.created_at).toLocaleDateString("ru-RU"),
+      })));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || !commentAuthor.trim()) return;
+    await api.addComment({ author: commentAuthor, text: commentText, news_id: dbNews[0]?.id });
     setPendingComment(true);
     setCommentText("");
+    setCommentAuthor("");
   };
 
   const today = new Date().toLocaleDateString("ru-RU", {
@@ -144,20 +176,26 @@ export default function Index() {
 
   const renderContent = () => {
     switch (activeSection) {
-      case "Новости": return <NewsPage />;
+      case "Новости": return <NewsPage news={dbNews} loading={loading} />;
       case "Рубрики": return <RubricsPage />;
       case "О городе": return <AboutCityPage />;
-      case "Афиша": return <AfishaPage />;
-      case "Объявления": return <AnnouncementsPage />;
+      case "Афиша": return <AfishaPage events={dbEvents} loading={loading} />;
+      case "Объявления": return <AnnouncementsPage announcements={dbAnnouncements} loading={loading} />;
       case "Форум": return <ForumPage />;
       case "Контакты": return <ContactsPage />;
       default: return (
         <HomePage
-          comments={comments}
+          news={dbNews}
+          events={dbEvents}
+          announcements={dbAnnouncements}
+          comments={dbComments}
           commentText={commentText}
+          commentAuthor={commentAuthor}
           setCommentText={setCommentText}
+          setCommentAuthor={setCommentAuthor}
           handleCommentSubmit={handleCommentSubmit}
           pendingComment={pendingComment}
+          loading={loading}
         />
       );
     }
@@ -308,7 +346,19 @@ export default function Index() {
   );
 }
 
-function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, pendingComment }: HomePageProps) {
+const categoryColor = (cat: string) => {
+  if (cat === "Политика") return "bg-portal-red";
+  if (cat === "Образование") return "bg-portal-gold";
+  return "bg-portal-navy";
+};
+
+function HomePage({ news, events, announcements, comments, commentText, commentAuthor, setCommentText, setCommentAuthor, handleCommentSubmit, pendingComment, loading }: HomePageProps) {
+  if (loading) {
+    return <div className="text-center py-10 font-ptsans text-portal-gray">Загрузка...</div>;
+  }
+
+  const heroItem = news[0];
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
       <div>
@@ -316,40 +366,42 @@ function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, 
           <div className="double-rule mb-1" />
           <div className="portal-section-title mt-3">Главные новости</div>
 
-          <div className="border border-portal-gray-light bg-white mb-4 overflow-hidden">
-            <div className="relative">
-              <img src={HERO_IMAGE} alt="Главная новость" className="w-full h-64 object-cover" />
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-5">
-                <span className="tag-badge-red mb-2 inline-block">Эксклюзив</span>
-                <h1 className="news-headline text-white text-2xl sm:text-3xl leading-tight">
-                  Реконструкция центрального проспекта завершится до конца осени
-                </h1>
+          {heroItem && (
+            <div className="border border-portal-gray-light bg-white mb-4 overflow-hidden">
+              <div className="relative">
+                <img src={heroItem.image_url || HERO_IMAGE} alt="Главная новость" className="w-full h-64 object-cover" />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-5">
+                  <span className="tag-badge-red mb-2 inline-block">Эксклюзив</span>
+                  <h1 className="news-headline text-white text-2xl sm:text-3xl leading-tight">
+                    {heroItem.title}
+                  </h1>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="flex items-center gap-4 mb-3">
+                  <span className="tag-badge">{heroItem.category}</span>
+                  <span className="news-meta">{new Date(heroItem.created_at).toLocaleDateString("ru-RU")} · {heroItem.author}</span>
+                </div>
+                <p className="font-ptserif text-sm text-portal-ink-light leading-relaxed mb-4">
+                  {heroItem.summary}
+                </p>
+                <button className="btn-primary">Читать полностью</button>
               </div>
             </div>
-            <div className="p-5">
-              <div className="flex items-center gap-4 mb-3">
-                <span className="tag-badge">Городское хозяйство</span>
-                <span className="news-meta">11 мая 2026 · Редакция</span>
-              </div>
-              <p className="font-ptserif text-sm text-portal-ink-light leading-relaxed mb-4">
-                Городская администрация подтвердила завершение масштабных дорожных работ в срок. На ремонт главной магистрали города выделено более 340 миллионов рублей из средств регионального бюджета. По словам мэра, работы ведутся строго по графику, несмотря на неблагоприятные погодные условия.
-              </p>
-              <button className="btn-primary">Читать полностью</button>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {NEWS.slice(1, 5).map((item, i) => (
+            {news.slice(1, 5).map((item, i) => (
               <article key={item.id} className={`bg-white border border-portal-gray-light p-4 animate-fade-in stagger-${i + 2}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`tag-badge ${item.categoryColor} text-white`}>{item.category}</span>
+                  <span className={`tag-badge ${categoryColor(item.category)} text-white`}>{item.category}</span>
                 </div>
                 <h3 className="news-headline text-base text-portal-ink mb-2 cursor-pointer hover:text-portal-navy transition-colors">
                   {item.title}
                 </h3>
                 <p className="font-ptserif text-xs text-portal-gray leading-relaxed mb-3">{item.summary}</p>
                 <div className="flex items-center justify-between">
-                  <span className="news-meta">{item.date} · {item.author}</span>
+                  <span className="news-meta">{new Date(item.created_at).toLocaleDateString("ru-RU")} · {item.author}</span>
                   <button className="font-ptsans text-xs text-portal-navy hover:underline">Читать →</button>
                 </div>
               </article>
@@ -389,6 +441,12 @@ function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, 
           ) : (
             <form onSubmit={handleCommentSubmit} className="border border-portal-gray-light p-4 bg-portal-paper">
               <div className="font-ptsans text-xs font-bold text-portal-navy mb-2 uppercase tracking-wide">Оставить комментарий</div>
+              <input
+                placeholder="Ваше имя"
+                value={commentAuthor}
+                onChange={e => setCommentAuthor(e.target.value)}
+                className="w-full font-ptserif text-sm border border-portal-gray-light p-3 focus:outline-none focus:border-portal-navy bg-white mb-2"
+              />
               <textarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
@@ -436,15 +494,15 @@ function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, 
         <div className="sidebar-widget animate-fade-in stagger-3">
           <div className="sidebar-widget-header">Афиша — ближайшие события</div>
           <div className="p-3">
-            {EVENTS.slice(0, 4).map((ev, i) => (
+            {events.slice(0, 4).map((ev, i) => (
               <div key={i} className="flex gap-3 mb-3 pb-3 border-b border-portal-gray-light last:border-0 last:mb-0 last:pb-0">
                 <div className="flex-shrink-0 bg-portal-navy text-white text-center w-12 py-1">
-                  <div className="font-playfair text-lg font-bold leading-none">{ev.date.split(" ")[0]}</div>
-                  <div className="font-ptsans text-[9px] uppercase tracking-wide">{ev.date.split(" ")[1]}</div>
+                  <div className="font-playfair text-lg font-bold leading-none">{ev.event_date.split(" ")[0]}</div>
+                  <div className="font-ptsans text-[9px] uppercase tracking-wide">{ev.event_date.split(" ")[1]}</div>
                 </div>
                 <div>
                   <div className="font-ptserif text-xs font-bold text-portal-ink leading-tight mb-0.5 cursor-pointer hover:text-portal-navy">{ev.title}</div>
-                  <div className="font-ptsans text-[10px] text-portal-gray">{ev.place} · {ev.time}</div>
+                  <div className="font-ptsans text-[10px] text-portal-gray">{ev.place} · {ev.event_time}</div>
                 </div>
               </div>
             ))}
@@ -455,7 +513,7 @@ function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, 
         <div className="sidebar-widget mt-5 animate-fade-in stagger-4">
           <div className="sidebar-widget-header">Объявления</div>
           <div className="p-3">
-            {ANNOUNCEMENTS.slice(0, 3).map((a) => (
+            {announcements.slice(0, 3).map((a) => (
               <div key={a.id} className="mb-3 pb-3 border-b border-portal-gray-light last:border-0 last:mb-0 last:pb-0">
                 <div className="font-ptsans text-[10px] text-portal-gray uppercase tracking-wide mb-0.5">{a.category}</div>
                 <div className="font-ptserif text-xs text-portal-ink cursor-pointer hover:text-portal-navy leading-tight mb-0.5">{a.title}</div>
@@ -485,9 +543,15 @@ function HomePage({ comments, commentText, setCommentText, handleCommentSubmit, 
   );
 }
 
-function NewsPage() {
+function NewsPage({ news, loading }: { news: ApiNews[]; loading: boolean }) {
   const [activeFilter, setActiveFilter] = useState("Все");
   const categories = ["Все", "Городское хозяйство", "Политика", "Экономика", "Образование", "Социальная сфера"];
+
+  if (loading) {
+    return <div className="text-center py-10 font-ptsans text-portal-gray">Загрузка...</div>;
+  }
+
+  const filtered = activeFilter === "Все" ? news : news.filter(n => n.category === activeFilter);
 
   return (
     <div>
@@ -505,13 +569,13 @@ function NewsPage() {
         ))}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {NEWS.map((item) => (
+        {filtered.map((item) => (
           <article key={item.id} className="bg-white border border-portal-gray-light overflow-hidden">
-            {item.image && <img src={item.image} alt={item.title} className="w-full h-40 object-cover" />}
+            {item.image_url && <img src={item.image_url} alt={item.title} className="w-full h-40 object-cover" />}
             <div className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className={`tag-badge ${item.categoryColor} text-white`}>{item.category}</span>
-                <span className="news-meta">{item.date}</span>
+                <span className={`tag-badge ${categoryColor(item.category)} text-white`}>{item.category}</span>
+                <span className="news-meta">{new Date(item.created_at).toLocaleDateString("ru-RU")}</span>
               </div>
               <h3 className="news-headline text-lg text-portal-ink mb-2 cursor-pointer hover:text-portal-navy">{item.title}</h3>
               <p className="font-ptserif text-sm text-portal-gray leading-relaxed mb-3">{item.summary}</p>
@@ -596,39 +660,46 @@ function AboutCityPage() {
   );
 }
 
-function AfishaPage() {
+function AfishaPage({ events, loading }: { events: ApiEvent[]; loading: boolean }) {
+  if (loading) {
+    return <div className="text-center py-10 font-ptsans text-portal-gray">Загрузка...</div>;
+  }
+
+  const featuredEvent = events[0];
+
   return (
     <div>
       <div className="double-rule mb-1" />
       <div className="portal-section-title mt-3">Афиша города</div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2 bg-white border border-portal-gray-light overflow-hidden">
-          <div className="flex flex-col sm:flex-row">
-            <img src={CULTURE_IMAGE} alt="Концерт" className="w-full sm:w-64 h-48 sm:h-auto object-cover flex-shrink-0" />
-            <div className="p-6">
-              <span className="tag-badge-gold mb-3 inline-block">Рекомендуем</span>
-              <h2 className="font-playfair text-2xl font-bold text-portal-navy mb-2">Концерт городского симфонического оркестра</h2>
-              <p className="font-ptserif text-sm text-portal-gray mb-4">Торжественный концерт в честь Дня города. В программе — произведения Чайковского, Шостаковича и Прокофьева.</p>
-              <div className="flex flex-wrap gap-4 mb-4">
-                <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="Calendar" size={13} className="text-portal-gold" /> 13 мая 2026</span>
-                <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="Clock" size={13} className="text-portal-gold" /> 19:00</span>
-                <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="MapPin" size={13} className="text-portal-gold" /> Дом культуры</span>
+        {featuredEvent && (
+          <div className="md:col-span-2 bg-white border border-portal-gray-light overflow-hidden">
+            <div className="flex flex-col sm:flex-row">
+              <img src={CULTURE_IMAGE} alt={featuredEvent.title} className="w-full sm:w-64 h-48 sm:h-auto object-cover flex-shrink-0" />
+              <div className="p-6">
+                <span className="tag-badge-gold mb-3 inline-block">Рекомендуем</span>
+                <h2 className="font-playfair text-2xl font-bold text-portal-navy mb-2">{featuredEvent.title}</h2>
+                <div className="flex flex-wrap gap-4 mb-4">
+                  <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="Calendar" size={13} className="text-portal-gold" /> {featuredEvent.event_date.split(" ")[0]}</span>
+                  <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="Clock" size={13} className="text-portal-gold" /> {featuredEvent.event_time}</span>
+                  <span className="flex items-center gap-1.5 font-ptsans text-xs text-portal-ink"><Icon name="MapPin" size={13} className="text-portal-gold" /> {featuredEvent.place}</span>
+                </div>
+                <button className="btn-primary">Подробнее о событии</button>
               </div>
-              <button className="btn-primary">Подробнее о событии</button>
             </div>
           </div>
-        </div>
-        {EVENTS.slice(1).map((ev, i) => (
+        )}
+        {events.slice(1).map((ev, i) => (
           <div key={i} className="bg-white border border-portal-gray-light p-5">
             <div className="flex gap-4 items-start">
               <div className="flex-shrink-0 bg-portal-navy text-white text-center w-14 py-2 px-1">
-                <div className="font-playfair text-2xl font-black leading-none">{ev.date.split(" ")[0]}</div>
-                <div className="font-ptsans text-[10px] uppercase tracking-wide">{ev.date.split(" ")[1]}</div>
+                <div className="font-playfair text-2xl font-black leading-none">{ev.event_date.split(" ")[0]}</div>
+                <div className="font-ptsans text-[10px] uppercase tracking-wide">{ev.event_date.split(" ")[1]}</div>
               </div>
               <div>
                 <h3 className="font-playfair text-lg font-bold text-portal-ink mb-1 cursor-pointer hover:text-portal-navy">{ev.title}</h3>
                 <div className="flex flex-wrap gap-3">
-                  <span className="flex items-center gap-1 font-ptsans text-xs text-portal-gray"><Icon name="Clock" size={11} /> {ev.time}</span>
+                  <span className="flex items-center gap-1 font-ptsans text-xs text-portal-gray"><Icon name="Clock" size={11} /> {ev.event_time}</span>
                   <span className="flex items-center gap-1 font-ptsans text-xs text-portal-gray"><Icon name="MapPin" size={11} /> {ev.place}</span>
                 </div>
               </div>
@@ -640,10 +711,30 @@ function AfishaPage() {
   );
 }
 
-function AnnouncementsPage() {
+function AnnouncementsPage({ announcements, loading }: { announcements: ApiAnn[]; loading: boolean }) {
   const categories = ["Все", "Недвижимость", "Работа", "Услуги", "Продажа", "Аренда"];
   const [active, setActive] = useState("Все");
   const [showForm, setShowForm] = useState(false);
+  const [formTitle, setFormTitle] = useState("");
+  const [formCategory, setFormCategory] = useState("Недвижимость");
+  const [formPrice, setFormPrice] = useState("");
+  const [formContact, setFormContact] = useState("");
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim()) return;
+    await api.addAnnouncement({ title: formTitle, category: formCategory, price: formPrice, contact: formContact });
+    setFormSubmitted(true);
+    setFormTitle(""); setFormCategory("Недвижимость"); setFormPrice(""); setFormContact("");
+    setShowForm(false);
+  };
+
+  if (loading) {
+    return <div className="text-center py-10 font-ptsans text-portal-gray">Загрузка...</div>;
+  }
+
+  const filtered = active === "Все" ? announcements : announcements.filter(a => a.category === active);
 
   return (
     <div>
@@ -656,21 +747,45 @@ function AnnouncementsPage() {
         </button>
       </div>
 
+      {formSubmitted && (
+        <div className="bg-green-50 border border-green-200 p-4 mb-5 text-center">
+          <Icon name="Clock" size={16} className="inline mr-2 text-green-700" />
+          <span className="font-ptsans text-sm text-green-800">Объявление отправлено на модерацию</span>
+        </div>
+      )}
+
       {showForm && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-5">
+        <form onSubmit={handleFormSubmit} className="bg-amber-50 border border-amber-200 p-4 mb-5">
           <div className="font-ptsans text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">Новое объявление (модерация 1–2 рабочих дня)</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input placeholder="Заголовок объявления" className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy col-span-2" />
-            <select className="font-ptsans text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy">
+            <input
+              placeholder="Заголовок объявления"
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy col-span-2"
+            />
+            <select
+              value={formCategory}
+              onChange={e => setFormCategory(e.target.value)}
+              className="font-ptsans text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy"
+            >
               {categories.slice(1).map(c => <option key={c}>{c}</option>)}
             </select>
-            <input placeholder="Цена / условие" className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy" />
-            <textarea placeholder="Описание объявления..." className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy resize-none h-20 col-span-2" />
-            <input placeholder="Контактный телефон" className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy" />
-            <input placeholder="Ваше имя" className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy" />
+            <input
+              placeholder="Цена / условие"
+              value={formPrice}
+              onChange={e => setFormPrice(e.target.value)}
+              className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy"
+            />
+            <input
+              placeholder="Контактный телефон"
+              value={formContact}
+              onChange={e => setFormContact(e.target.value)}
+              className="font-ptserif text-sm border border-portal-gray-light p-2.5 bg-white focus:outline-none focus:border-portal-navy col-span-2"
+            />
           </div>
-          <button className="btn-primary mt-3">Отправить на модерацию</button>
-        </div>
+          <button type="submit" className="btn-primary mt-3">Отправить на модерацию</button>
+        </form>
       )}
 
       <div className="flex flex-wrap gap-2 mb-5">
@@ -686,11 +801,11 @@ function AnnouncementsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {ANNOUNCEMENTS.map((a) => (
+        {filtered.map((a) => (
           <div key={a.id} className="bg-white border border-portal-gray-light p-4">
             <div className="flex items-start justify-between mb-2">
               <span className="tag-badge">{a.category}</span>
-              <span className="font-ptsans text-[11px] text-portal-gray">{a.date}</span>
+              <span className="font-ptsans text-[11px] text-portal-gray">{new Date(a.created_at).toLocaleDateString("ru-RU")}</span>
             </div>
             <h3 className="font-playfair text-lg font-bold text-portal-ink mb-2 cursor-pointer hover:text-portal-navy">{a.title}</h3>
             <div className="flex items-center justify-between">

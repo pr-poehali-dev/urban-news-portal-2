@@ -1,74 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
+import { api, NewsItem as ApiNews, EventItem as ApiEvent, AnnouncementItem as ApiAnn, CommentItem as ApiComment, ADMIN_TOKEN_VALUE } from "@/lib/api";
 
-/* ─── Types ─── */
-interface NewsItem {
-  id: number;
-  category: string;
-  title: string;
-  summary: string;
-  date: string;
-  author: string;
-  status: "published" | "draft";
-  views: number;
-}
 
-interface EventItem {
-  id: number;
-  date: string;
-  title: string;
-  place: string;
-  time: string;
-}
-
-interface Announcement {
-  id: number;
-  category: string;
-  title: string;
-  price: string;
-  date: string;
-  status: "pending" | "approved" | "rejected";
-}
-
-interface CommentItem {
-  id: number;
-  author: string;
-  text: string;
-  date: string;
-  status: "pending" | "approved" | "rejected";
-  newsTitle: string;
-}
-
-/* ─── Initial Data ─── */
-const initNews: NewsItem[] = [
-  { id: 1, category: "Городское хозяйство", title: "Реконструкция центрального проспекта завершится до конца осени", summary: "Городская администрация подтвердила завершение масштабных дорожных работ в срок.", date: "11.05.2026", author: "Редакция", status: "published", views: 1842 },
-  { id: 2, category: "Политика", title: "Городская дума рассмотрит поправки к бюджету на следующей неделе", summary: "Депутаты обсудят перераспределение средств в пользу социальных программ.", date: "11.05.2026", author: "А. Смирнов", status: "published", views: 934 },
-  { id: 3, category: "Экономика", title: "В городе откроется новый промышленный технопарк", summary: "Инвестиции в проект составят свыше 1,2 миллиарда рублей.", date: "10.05.2026", author: "Е. Волков", status: "published", views: 712 },
-  { id: 4, category: "Образование", title: "Три городские школы вошли в топ-100 лучших учебных заведений России", summary: "По итогам национального рейтинга школы заняли высокие позиции.", date: "10.05.2026", author: "О. Петрова", status: "draft", views: 0 },
-  { id: 5, category: "Социальная сфера", title: "Открыт новый корпус городской больницы после капитального ремонта", summary: "В торжественном открытии принял участие глава городской администрации.", date: "09.05.2026", author: "Редакция", status: "draft", views: 0 },
-];
-
-const initEvents: EventItem[] = [
-  { id: 1, date: "13 мая", title: "Концерт городского симфонического оркестра", place: "Дом культуры", time: "19:00" },
-  { id: 2, date: "15 мая", title: "Выставка «Наш город вчера и сегодня»", place: "Краеведческий музей", time: "10:00" },
-  { id: 3, date: "17 мая", title: "Международный день музеев — вход свободный", place: "Все музеи города", time: "Весь день" },
-  { id: 4, date: "19 мая", title: "Литературные чтения в городском парке", place: "Парк Победы", time: "15:00" },
-  { id: 5, date: "22 мая", title: "День защиты детей: праздничная программа", place: "Площадь Ленина", time: "12:00" },
-];
-
-const initAnnouncements: Announcement[] = [
-  { id: 1, category: "Недвижимость", title: "Продаётся 3-комнатная квартира, ул. Советская, 14", price: "4 200 000 ₽", date: "11.05.2026", status: "approved" },
-  { id: 2, category: "Работа", title: "Требуется инженер-конструктор в проектное бюро", price: "от 65 000 ₽", date: "11.05.2026", status: "approved" },
-  { id: 3, category: "Услуги", title: "Юридические консультации: жилищное право", price: "от 1 500 ₽", date: "10.05.2026", status: "pending" },
-  { id: 4, category: "Продажа", title: "Мебельный гарнитур в хорошем состоянии", price: "35 000 ₽", date: "10.05.2026", status: "pending" },
-];
-
-const initComments: CommentItem[] = [
-  { id: 1, author: "Сергей В.", text: "Давно ждали этого решения по дороге. Надеемся, сделают качественно.", date: "11.05.2026", status: "approved", newsTitle: "Реконструкция центрального проспекта" },
-  { id: 2, author: "Марина К.", text: "Хорошая новость про школы. Гордимся нашими учителями!", date: "10.05.2026", status: "approved", newsTitle: "Три городские школы вошли в топ-100" },
-  { id: 3, author: "Анонимный", text: "Когда наконец отремонтируют дорогу в Северном районе?", date: "11.05.2026", status: "pending", newsTitle: "Реконструкция центрального проспекта" },
-  { id: 4, author: "Петров А.Н.", text: "Отличная новость про технопарк! Ждём рабочих мест.", date: "10.05.2026", status: "pending", newsTitle: "В городе откроется новый технопарк" },
-];
 
 const CATEGORIES = ["Городское хозяйство", "Политика", "Экономика", "Образование", "Социальная сфера", "Культура", "Спорт", "Происшествия"];
 
@@ -84,7 +18,7 @@ const NAV_ITEMS: { id: Section; label: string; icon: string }[] = [
 ];
 
 /* ─── Auth Gate ─── */
-function AuthGate({ onLogin }: { onLogin: () => void }) {
+function AuthGate({ onLogin }: { onLogin: (token: string) => void }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -96,7 +30,7 @@ function AuthGate({ onLogin }: { onLogin: () => void }) {
     setError(false);
     setTimeout(() => {
       if (login === "admin" && password === "admin") {
-        onLogin();
+        onLogin(ADMIN_TOKEN_VALUE);
       } else {
         setError(true);
       }
@@ -161,17 +95,17 @@ function AuthGate({ onLogin }: { onLogin: () => void }) {
 /* ─── Main CMS ─── */
 export default function AdminPanel() {
   const [isAuth, setIsAuth] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
   const [section, setSection] = useState<Section>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
 
-  const [news, setNews] = useState<NewsItem[]>(initNews);
-  const [events, setEvents] = useState<EventItem[]>(initEvents);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initAnnouncements);
-  const [comments, setComments] = useState<CommentItem[]>(initComments);
+  const handleLogin = (token: string) => {
+    setIsAuth(true);
+    setAdminToken(token);
+  };
 
-  const pendingCount = comments.filter(c => c.status === "pending").length + announcements.filter(a => a.status === "pending").length;
-
-  if (!isAuth) return <AuthGate onLogin={() => setIsAuth(true)} />;
+  if (!isAuth) return <AuthGate onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-[#0f1117] flex font-ptsans">
@@ -249,11 +183,11 @@ export default function AdminPanel() {
 
         {/* Page */}
         <main className="flex-1 overflow-auto p-5">
-          {section === "dashboard" && <Dashboard news={news} comments={comments} announcements={announcements} events={events} />}
-          {section === "news" && <NewsSection news={news} setNews={setNews} />}
-          {section === "events" && <EventsSection events={events} setEvents={setEvents} />}
-          {section === "announcements" && <AnnouncementsSection announcements={announcements} setAnnouncements={setAnnouncements} />}
-          {section === "comments" && <CommentsSection comments={comments} setComments={setComments} />}
+          {section === "dashboard" && <Dashboard adminToken={adminToken} />}
+          {section === "news" && <NewsSection adminToken={adminToken} />}
+          {section === "events" && <EventsSection adminToken={adminToken} />}
+          {section === "announcements" && <AnnouncementsSection adminToken={adminToken} onPendingChange={setPendingCount} />}
+          {section === "comments" && <CommentsSection adminToken={adminToken} onPendingChange={setPendingCount} />}
           {section === "settings" && <SettingsSection />}
         </main>
       </div>
@@ -262,18 +196,37 @@ export default function AdminPanel() {
 }
 
 /* ─── Dashboard ─── */
-function Dashboard({ news, comments, announcements, events }: { news: NewsItem[]; comments: CommentItem[]; announcements: Announcement[]; events: EventItem[] }) {
-  const published = news.filter(n => n.status === "published").length;
-  const drafts = news.filter(n => n.status === "draft").length;
-  const pendingComments = comments.filter(c => c.status === "pending").length;
-  const pendingAnn = announcements.filter(a => a.status === "pending").length;
-  const totalViews = news.reduce((s, n) => s + n.views, 0);
+function Dashboard({ adminToken }: { adminToken: string }) {
+  const [statsData, setStatsData] = useState<Record<string, number | Record<string, number>> | null>(null);
+  const [recentNews, setRecentNews] = useState<ApiNews[]>([]);
+  const [pendingComments, setPendingComments] = useState<ApiComment[]>([]);
+  const [pendingAnns, setPendingAnns] = useState<ApiAnn[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    Promise.all([
+      api.getStats(adminToken),
+      api.getNewsAdmin(adminToken),
+      api.getCommentsAdmin(adminToken),
+      api.getAnnouncementsAdmin(adminToken),
+    ]).then(([stats, news, comments, anns]) => {
+      setStatsData(stats);
+      setRecentNews(news.slice(0, 4));
+      setPendingComments(comments.filter((c: ApiComment) => c.status === "pending"));
+      setPendingAnns(anns.filter((a: ApiAnn) => a.status === "pending"));
+      setLoadingStats(false);
+    }).catch(() => setLoadingStats(false));
+  }, [adminToken]);
+
+  const newsStats = (statsData?.news ?? {}) as Record<string, number>;
+  const totalPending = (statsData?.pending_comments ?? 0) + (statsData?.pending_announcements ?? 0);
 
   const stats = [
-    { label: "Новостей", value: news.length, sub: `${published} опубл., ${drafts} черн.`, icon: "Newspaper", color: "text-blue-400" },
-    { label: "Просмотров", value: totalViews.toLocaleString("ru"), sub: "за все время", icon: "Eye", color: "text-emerald-400" },
-    { label: "На модерации", value: pendingComments + pendingAnn, sub: `${pendingComments} комм., ${pendingAnn} объявл.`, icon: "Clock", color: "text-amber-400" },
-    { label: "Событий в афише", value: events.length, sub: "ближайшие", icon: "Calendar", color: "text-purple-400" },
+    { label: "Новостей", value: loadingStats ? "…" : (newsStats.total ?? 0), sub: loadingStats ? "" : `${newsStats.published ?? 0} опубл., ${(newsStats.total ?? 0) - (newsStats.published ?? 0)} черн.`, icon: "Newspaper", color: "text-blue-400" },
+    { label: "Просмотров", value: loadingStats ? "…" : Number(newsStats.views ?? 0).toLocaleString("ru"), sub: "за все время", icon: "Eye", color: "text-emerald-400" },
+    { label: "На модерации", value: loadingStats ? "…" : totalPending, sub: loadingStats ? "" : `${statsData?.pending_comments ?? 0} комм., ${statsData?.pending_announcements ?? 0} объявл.`, icon: "Clock", color: "text-amber-400" },
+    { label: "Событий в афише", value: loadingStats ? "…" : (statsData?.events ?? 0), sub: "ближайшие", icon: "Calendar", color: "text-purple-400" },
   ];
 
   return (
@@ -305,36 +258,37 @@ function Dashboard({ news, comments, announcements, events }: { news: NewsItem[]
             <span className="text-white text-xs font-bold uppercase tracking-widest">Последние новости</span>
             <Icon name="Newspaper" size={14} className="text-gray-600" />
           </div>
-          {news.slice(0, 4).map(n => (
+          {recentNews.map(n => (
             <div key={n.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#1e2a3d]/50 last:border-0">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${n.status === "published" ? "bg-emerald-500" : "bg-amber-500"}`} />
               <div className="flex-1 min-w-0">
                 <div className="text-gray-200 text-xs truncate">{n.title}</div>
-                <div className="text-gray-600 text-[10px]">{n.date} · {n.author}</div>
+                <div className="text-gray-600 text-[10px]">{new Date(n.created_at).toLocaleDateString("ru-RU")} · {n.author}</div>
               </div>
               <div className="text-gray-600 text-[10px] flex items-center gap-1 flex-shrink-0">
                 <Icon name="Eye" size={10} />{n.views}
               </div>
             </div>
           ))}
+          {loadingStats && <div className="px-4 py-4 text-center text-gray-600 text-xs">Загрузка...</div>}
         </div>
 
         {/* Pending moderation */}
         <div className="bg-[#161b27] border border-[#1e2a3d]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2a3d]">
             <span className="text-white text-xs font-bold uppercase tracking-widest">Ожидают модерации</span>
-            <span className="bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">{pendingComments + pendingAnn}</span>
+            <span className="bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">{totalPending}</span>
           </div>
-          {comments.filter(c => c.status === "pending").map(c => (
+          {pendingComments.map(c => (
             <div key={c.id} className="px-4 py-3 border-b border-[#1e2a3d]/50">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="MessageSquare" size={11} className="text-gray-500" />
                 <span className="text-gray-500 text-[10px]">Комментарий от {c.author}</span>
               </div>
-              <div className="text-gray-300 text-xs truncate">{c.text}</div>
+              <div className="text-gray-300 text-xs truncate">{c.body}</div>
             </div>
           ))}
-          {announcements.filter(a => a.status === "pending").map(a => (
+          {pendingAnns.map(a => (
             <div key={a.id} className="px-4 py-3 border-b border-[#1e2a3d]/50">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="Tag" size={11} className="text-gray-500" />
@@ -343,9 +297,10 @@ function Dashboard({ news, comments, announcements, events }: { news: NewsItem[]
               <div className="text-gray-300 text-xs truncate">{a.title}</div>
             </div>
           ))}
-          {(pendingComments + pendingAnn) === 0 && (
+          {!loadingStats && totalPending === 0 && (
             <div className="px-4 py-6 text-center text-gray-600 text-xs">Всё проверено ✓</div>
           )}
+          {loadingStats && <div className="px-4 py-4 text-center text-gray-600 text-xs">Загрузка...</div>}
         </div>
       </div>
     </div>
@@ -353,10 +308,19 @@ function Dashboard({ news, comments, announcements, events }: { news: NewsItem[]
 }
 
 /* ─── News Section ─── */
-function NewsSection({ news, setNews }: { news: NewsItem[]; setNews: (n: NewsItem[]) => void }) {
-  const [editing, setEditing] = useState<NewsItem | null>(null);
+function NewsSection({ adminToken }: { adminToken: string }) {
+  const [news, setNews] = useState<ApiNews[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<ApiNews | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ title: "", category: CATEGORIES[0], summary: "", author: "Редакция", status: "draft" as "draft" | "published" });
+
+  const reload = () => {
+    setLoading(true);
+    api.getNewsAdmin(adminToken).then(data => { setNews(data); setLoading(false); }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => { if (adminToken) reload(); }, [adminToken]);
 
   const startAdd = () => {
     setForm({ title: "", category: CATEGORIES[0], summary: "", author: "Редакция", status: "draft" });
@@ -364,38 +328,43 @@ function NewsSection({ news, setNews }: { news: NewsItem[]; setNews: (n: NewsIte
     setEditing(null);
   };
 
-  const startEdit = (item: NewsItem) => {
+  const startEdit = (item: ApiNews) => {
     setForm({ title: item.title, category: item.category, summary: item.summary, author: item.author, status: item.status });
     setEditing(item);
     setAdding(false);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.title.trim()) return;
     if (adding) {
-      const newItem: NewsItem = {
-        id: Date.now(),
-        ...form,
-        date: new Date().toLocaleDateString("ru-RU"),
-        views: 0,
-      };
-      setNews([newItem, ...news]);
+      await api.createNews(form, adminToken);
     } else if (editing) {
-      setNews(news.map(n => n.id === editing.id ? { ...n, ...form } : n));
+      await api.updateNews(editing.id, form, adminToken);
     }
     setAdding(false);
     setEditing(null);
+    reload();
   };
 
-  const remove = (id: number) => setNews(news.filter(n => n.id !== id));
-  const toggleStatus = (id: number) => setNews(news.map(n => n.id === id ? { ...n, status: n.status === "published" ? "draft" : "published" } : n));
+  const remove = async (id: number) => {
+    await api.deleteNews(id, adminToken);
+    setNews(news.filter(n => n.id !== id));
+  };
+
+  const toggleStatus = async (id: number) => {
+    const item = news.find(n => n.id === id);
+    if (!item) return;
+    const newStatus = item.status === "published" ? "draft" : "published";
+    await api.updateNews(id, { category: item.category, title: item.title, summary: item.summary, author: item.author, status: newStatus }, adminToken);
+    setNews(news.map(n => n.id === id ? { ...n, status: newStatus } : n));
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="font-playfair text-2xl font-bold text-white mb-0.5">Новости</h1>
-          <p className="text-gray-500 text-xs">{news.length} материалов · {news.filter(n => n.status === "published").length} опубликовано</p>
+          <p className="text-gray-500 text-xs">{loading ? "Загрузка..." : `${news.length} материалов · ${news.filter(n => n.status === "published").length} опубликовано`}</p>
         </div>
         <button onClick={startAdd} className="flex items-center gap-2 bg-[#1a2744] hover:bg-[#253561] text-white text-xs font-bold uppercase tracking-widest px-4 py-2.5 transition-colors">
           <Icon name="Plus" size={14} />
@@ -465,7 +434,7 @@ function NewsSection({ news, setNews }: { news: NewsItem[]; setNews: (n: NewsIte
           <div key={n.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 border-b border-[#1e2a3d]/40 px-4 py-3 hover:bg-[#1a2744]/20 last:border-0">
             <div>
               <div className="text-gray-200 text-xs mb-0.5 line-clamp-1">{n.title}</div>
-              <div className="text-gray-600 text-[10px]">{n.category} · {n.date} · {n.author}</div>
+              <div className="text-gray-600 text-[10px]">{n.category} · {new Date(n.created_at).toLocaleDateString("ru-RU")} · {n.author}</div>
             </div>
             <div className="px-4">
               <button
@@ -494,31 +463,44 @@ function NewsSection({ news, setNews }: { news: NewsItem[]; setNews: (n: NewsIte
 }
 
 /* ─── Events Section ─── */
-function EventsSection({ events, setEvents }: { events: EventItem[]; setEvents: (e: EventItem[]) => void }) {
+function EventsSection({ adminToken }: { adminToken: string }) {
+  const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ date: "", title: "", place: "", time: "" });
 
+  const reload = () => {
+    setLoading(true);
+    api.getEvents().then(data => { setEvents(data); setLoading(false); }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => { reload(); }, []);
+
   const startAdd = () => { setForm({ date: "", title: "", place: "", time: "" }); setAdding(true); setEditId(null); };
 
-  const startEdit = (ev: EventItem) => {
-    setForm({ date: ev.date, title: ev.title, place: ev.place, time: ev.time });
+  const startEdit = (ev: ApiEvent) => {
+    setForm({ date: ev.event_date, title: ev.title, place: ev.place, time: ev.event_time });
     setEditId(ev.id);
     setAdding(false);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.title.trim()) return;
     if (adding) {
-      setEvents([...events, { id: Date.now(), ...form }]);
+      await api.createEvent({ date: form.date, title: form.title, place: form.place, time: form.time }, adminToken);
     } else if (editId !== null) {
-      setEvents(events.map(e => e.id === editId ? { ...e, ...form } : e));
+      await api.updateEvent(editId, { date: form.date, title: form.title, place: form.place, time: form.time }, adminToken);
     }
     setAdding(false);
     setEditId(null);
+    reload();
   };
 
-  const remove = (id: number) => setEvents(events.filter(e => e.id !== id));
+  const remove = async (id: number) => {
+    await api.deleteEvent(id, adminToken);
+    setEvents(events.filter(e => e.id !== id));
+  };
 
   return (
     <div>
@@ -552,15 +534,16 @@ function EventsSection({ events, setEvents }: { events: EventItem[]; setEvents: 
       )}
 
       <div className="bg-[#161b27] border border-[#1e2a3d]">
+        {loading && <div className="px-4 py-6 text-center text-gray-600 text-xs">Загрузка...</div>}
         {events.map(ev => (
           <div key={ev.id} className="flex items-center gap-4 px-4 py-3 border-b border-[#1e2a3d]/40 hover:bg-[#1a2744]/20 last:border-0">
             <div className="flex-shrink-0 bg-[#1a2744] text-white text-center w-12 py-1.5">
-              <div className="font-playfair text-lg font-bold leading-none">{ev.date.split(" ")[0]}</div>
-              <div className="text-[9px] uppercase tracking-wide text-gray-400">{ev.date.split(" ")[1]}</div>
+              <div className="font-playfair text-lg font-bold leading-none">{ev.event_date.split(" ")[0]}</div>
+              <div className="text-[9px] uppercase tracking-wide text-gray-400">{ev.event_date.split(" ")[1]}</div>
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-gray-200 text-sm truncate">{ev.title}</div>
-              <div className="text-gray-600 text-[10px]">{ev.place} · {ev.time}</div>
+              <div className="text-gray-600 text-[10px]">{ev.place} · {ev.event_time}</div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => startEdit(ev)} className="text-gray-500 hover:text-blue-400 transition-colors"><Icon name="Pencil" size={14} /></button>
@@ -574,9 +557,35 @@ function EventsSection({ events, setEvents }: { events: EventItem[]; setEvents: 
 }
 
 /* ─── Announcements Section ─── */
-function AnnouncementsSection({ announcements, setAnnouncements }: { announcements: Announcement[]; setAnnouncements: (a: Announcement[]) => void }) {
-  const approve = (id: number) => setAnnouncements(announcements.map(a => a.id === id ? { ...a, status: "approved" } : a));
-  const reject = (id: number) => setAnnouncements(announcements.map(a => a.id === id ? { ...a, status: "rejected" } : a));
+function AnnouncementsSection({ adminToken, onPendingChange }: { adminToken: string; onPendingChange: (n: number) => void }) {
+  const [announcements, setAnnouncements] = useState<ApiAnn[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = () => {
+    setLoading(true);
+    api.getAnnouncementsAdmin(adminToken).then(data => {
+      setAnnouncements(data);
+      onPendingChange(data.filter(a => a.status === "pending").length);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => { if (adminToken) reload(); }, [adminToken]);
+
+  const approve = async (id: number) => {
+    await api.moderateAnnouncement(id, "approved", adminToken);
+    const updated = announcements.map(a => a.id === id ? { ...a, status: "approved" as const } : a);
+    setAnnouncements(updated);
+    onPendingChange(updated.filter(a => a.status === "pending").length);
+  };
+
+  const reject = async (id: number) => {
+    await api.moderateAnnouncement(id, "rejected", adminToken);
+    const updated = announcements.map(a => a.id === id ? { ...a, status: "rejected" as const } : a);
+    setAnnouncements(updated);
+    onPendingChange(updated.filter(a => a.status === "pending").length);
+  };
+
   const remove = (id: number) => setAnnouncements(announcements.filter(a => a.id !== id));
 
   const pending = announcements.filter(a => a.status === "pending");
@@ -586,7 +595,7 @@ function AnnouncementsSection({ announcements, setAnnouncements }: { announcemen
     <div>
       <div className="mb-5">
         <h1 className="font-playfair text-2xl font-bold text-white mb-0.5">Объявления</h1>
-        <p className="text-gray-500 text-xs">{pending.length} на модерации · {announcements.filter(a => a.status === "approved").length} опубликовано</p>
+        <p className="text-gray-500 text-xs">{loading ? "Загрузка..." : `${pending.length} на модерации · ${announcements.filter(a => a.status === "approved").length} опубликовано`}</p>
       </div>
 
       {pending.length > 0 && (
@@ -600,7 +609,7 @@ function AnnouncementsSection({ announcements, setAnnouncements }: { announcemen
                 <div className="flex-1 min-w-0">
                   <div className="text-gray-600 text-[10px] uppercase tracking-wide mb-0.5">{a.category}</div>
                   <div className="text-gray-200 text-sm truncate">{a.title}</div>
-                  <div className="text-gray-600 text-[10px]">{a.price} · {a.date}</div>
+                  <div className="text-gray-600 text-[10px]">{a.price} · {new Date(a.created_at).toLocaleDateString("ru-RU")}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => approve(a.id)} className="flex items-center gap-1 bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 hover:bg-emerald-900/60 transition-colors">
@@ -623,7 +632,7 @@ function AnnouncementsSection({ announcements, setAnnouncements }: { announcemen
             <div className="flex-1 min-w-0">
               <div className="text-gray-600 text-[10px] uppercase tracking-wide mb-0.5">{a.category}</div>
               <div className="text-gray-300 text-xs truncate">{a.title}</div>
-              <div className="text-gray-600 text-[10px]">{a.price} · {a.date}</div>
+              <div className="text-gray-600 text-[10px]">{a.price} · {new Date(a.created_at).toLocaleDateString("ru-RU")}</div>
             </div>
             <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 border ${a.status === "approved" ? "bg-emerald-900/30 text-emerald-500 border-emerald-800/40" : "bg-red-900/20 text-red-500 border-red-800/30"}`}>
               {a.status === "approved" ? "Одобрено" : "Отклонено"}
@@ -638,9 +647,33 @@ function AnnouncementsSection({ announcements, setAnnouncements }: { announcemen
 }
 
 /* ─── Comments Section ─── */
-function CommentsSection({ comments, setComments }: { comments: CommentItem[]; setComments: (c: CommentItem[]) => void }) {
-  const approve = (id: number) => setComments(comments.map(c => c.id === id ? { ...c, status: "approved" } : c));
-  const reject = (id: number) => setComments(comments.map(c => c.id === id ? { ...c, status: "rejected" } : c));
+function CommentsSection({ adminToken, onPendingChange }: { adminToken: string; onPendingChange: (n: number) => void }) {
+  const [comments, setComments] = useState<ApiComment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    api.getCommentsAdmin(adminToken).then(data => {
+      setComments(data);
+      onPendingChange(data.filter(c => c.status === "pending").length);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [adminToken]);
+
+  const approve = async (id: number) => {
+    await api.moderateComment(id, "approved", adminToken);
+    const updated = comments.map(c => c.id === id ? { ...c, status: "approved" as const } : c);
+    setComments(updated);
+    onPendingChange(updated.filter(c => c.status === "pending").length);
+  };
+
+  const reject = async (id: number) => {
+    await api.moderateComment(id, "rejected", adminToken);
+    const updated = comments.map(c => c.id === id ? { ...c, status: "rejected" as const } : c);
+    setComments(updated);
+    onPendingChange(updated.filter(c => c.status === "pending").length);
+  };
+
   const remove = (id: number) => setComments(comments.filter(c => c.id !== id));
 
   const pending = comments.filter(c => c.status === "pending");
@@ -650,7 +683,7 @@ function CommentsSection({ comments, setComments }: { comments: CommentItem[]; s
     <div>
       <div className="mb-5">
         <h1 className="font-playfair text-2xl font-bold text-white mb-0.5">Комментарии</h1>
-        <p className="text-gray-500 text-xs">{pending.length} на модерации · {comments.filter(c => c.status === "approved").length} опубликовано</p>
+        <p className="text-gray-500 text-xs">{loading ? "Загрузка..." : `${pending.length} на модерации · ${comments.filter(c => c.status === "approved").length} опубликовано`}</p>
       </div>
 
       {pending.length > 0 && (
@@ -664,8 +697,8 @@ function CommentsSection({ comments, setComments }: { comments: CommentItem[]; s
                 <div className="flex items-start justify-between gap-4 mb-2">
                   <div>
                     <span className="text-white text-xs font-bold">{c.author}</span>
-                    <span className="text-gray-600 text-[10px] ml-2">{c.date}</span>
-                    <div className="text-gray-600 text-[10px]">К новости: {c.newsTitle}</div>
+                    <span className="text-gray-600 text-[10px] ml-2">{new Date(c.created_at).toLocaleDateString("ru-RU")}</span>
+                    {c.news_id && <div className="text-gray-600 text-[10px]">К новости #{c.news_id}</div>}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => approve(c.id)} className="flex items-center gap-1 bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 hover:bg-emerald-900/60 transition-colors">
@@ -676,7 +709,7 @@ function CommentsSection({ comments, setComments }: { comments: CommentItem[]; s
                     </button>
                   </div>
                 </div>
-                <p className="text-gray-300 text-sm">{c.text}</p>
+                <p className="text-gray-300 text-sm">{c.body}</p>
               </div>
             ))}
           </div>
@@ -690,12 +723,12 @@ function CommentsSection({ comments, setComments }: { comments: CommentItem[]; s
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-gray-300 text-xs font-bold">{c.author}</span>
-                <span className="text-gray-600 text-[10px]">{c.date}</span>
+                <span className="text-gray-600 text-[10px]">{new Date(c.created_at).toLocaleDateString("ru-RU")}</span>
                 <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${c.status === "approved" ? "bg-emerald-900/30 text-emerald-500 border-emerald-800/40" : "bg-red-900/20 text-red-500 border-red-800/30"}`}>
                   {c.status === "approved" ? "Опубл." : "Откл."}
                 </span>
               </div>
-              <p className="text-gray-400 text-xs">{c.text}</p>
+              <p className="text-gray-400 text-xs">{c.body}</p>
             </div>
             <button onClick={() => remove(c.id)} className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"><Icon name="Trash2" size={14} /></button>
           </div>
